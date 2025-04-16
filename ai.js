@@ -1,6 +1,6 @@
 // ai.js
 const axios = require('axios');
-require('dotenv').config();
+require('dotenv').config(); // Load environment variables from .env file
 
 async function askGPT(prompt) {
   try {
@@ -12,7 +12,7 @@ async function askGPT(prompt) {
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // Get the key from .env file
           'Content-Type': 'application/json',
         },
       }
