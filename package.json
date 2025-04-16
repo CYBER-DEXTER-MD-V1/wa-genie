@@ -1,0 +1,21 @@
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "description": "A WhatsApp bot using Baileys with OpenAI GPT-3 and DALL·E for text and image generation.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^5.1.0", 
+    "axios": "^1.2.0",                    
+    "dotenv": "^16.0.0",                 
+    "pino": "^8.0.0"                      
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "author": "CYBER-DEXTER",
+  "license": "ISC"
+}
