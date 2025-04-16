@@ -1,4 +1,4 @@
-const { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys');
 const { default: pino } = require('pino');
 const axios = require('axios');
 const askGPT = require('./ai');  // OpenAI GPT-3 for text-based queries
@@ -21,17 +21,21 @@ async function generateImage(prompt) {
         }
       }
     );
-    return response.data.data[0].url;  // Return the URL of the generated image
+    if (response.data && response.data.data[0] && response.data.data[0].url) {
+      return response.data.data[0].url;  // Return the URL of the generated image
+    } else {
+      throw new Error('Image generation failed. No URL returned.');
+    }
   } catch (error) {
     console.error('Error generating image:', error);
-    return 'Sorry, I couldn’t generate the image.';
+    return 'Sorry, I couldn’t generate the image. Please try again later.';
   }
 }
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const { version } = await fetchLatestBaileysVersion();
-  
+
   const sock = makeWASocket({
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,  // No QR Code in terminal
@@ -43,11 +47,23 @@ async function startBot() {
 
   if (!sock.authState.creds.registered) {
     console.log('📲 Go to WhatsApp -> Linked Devices -> Link a Device');
-    const code = await sock.requestPairingCode('+94740482244);  // Replace with your phone number
+    const code = await sock.requestPairingCode('+94740482244');  // Replace with your phone number
     console.log(`🔗 Pairing Code: ${code}`);
   }
 
   sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect } = update;
+    if (connection === 'close') {
+      const shouldReconnect = lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut;
+      console.log('Connection closed. Reconnecting...', shouldReconnect);
+      if (shouldReconnect) {
+        startBot(); // Reconnect on error
+      }
+    }
+    console.log('Connection update:', update);
+  });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     const msg = messages[0];
@@ -59,6 +75,7 @@ async function startBot() {
     // Handle ".ai" command for GPT-3
     if (body.startsWith('.ai ')) {
       const prompt = body.slice(4);
+      await sock.sendMessage(from, { text: 'Processing your request... Please wait.' }, { quoted: msg });
       const reply = await askGPT(prompt);
       await sock.sendMessage(from, { text: reply }, { quoted: msg });
     }
@@ -66,10 +83,14 @@ async function startBot() {
     // Handle ".img" command for image generation
     if (body.startsWith('.img ')) {
       const prompt = body.slice(5);  // Get the prompt after ".img "
+      await sock.sendMessage(from, { text: 'Generating image... Please wait.' }, { quoted: msg });
       const imageUrl = await generateImage(prompt);  // Call DALL·E or other API
-      await sock.sendMessage(from, { text: imageUrl }, { quoted: msg });  // Send the image URL
+      await sock.sendMessage(from, { text: `Here is your generated image: ${imageUrl}` }, { quoted: msg });  // Send the image URL
     }
   });
 }
 
-startBot();
+startBot().catch((error) => {
+  console.error('Error starting bot:', error);
+});
+
