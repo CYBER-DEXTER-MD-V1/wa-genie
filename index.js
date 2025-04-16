@@ -43,7 +43,7 @@ async function startBot() {
 
   if (!sock.authState.creds.registered) {
     console.log('📲 Go to WhatsApp -> Linked Devices -> Link a Device');
-    const code = await sock.requestPairingCode('YOUR_PHONE_NUMBER');  // Replace with your phone number
+    const code = await sock.requestPairingCode('+94740482244);  // Replace with your phone number
     console.log(`🔗 Pairing Code: ${code}`);
   }
 
