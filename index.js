@@ -21,14 +21,10 @@ async function generateImage(prompt) {
         }
       }
     );
-    if (response.data && response.data.data[0] && response.data.data[0].url) {
-      return response.data.data[0].url;  // Return the URL of the generated image
-    } else {
-      throw new Error('Image generation failed. No URL returned.');
-    }
+    return response.data.data[0].url;  // Return the URL of the generated image
   } catch (error) {
     console.error('Error generating image:', error);
-    return 'Sorry, I couldn’t generate the image. Please try again later.';
+    return 'Sorry, I couldn’t generate the image.';
   }
 }
 
@@ -38,16 +34,18 @@ async function startBot() {
 
   const sock = makeWASocket({
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: false,  // No QR Code in terminal
+    printQRInTerminal: false,  // Disable QR Code in the terminal
     auth: state,
     version,
     browser: ['WA-GENIE', 'Chrome', '1.0'],
     getMessage: async () => ({ conversation: '💬' }),  // Default reply message
   });
 
+  // Ensure QR code pairing if the device is not paired yet
   if (!sock.authState.creds.registered) {
     console.log('📲 Go to WhatsApp -> Linked Devices -> Link a Device');
-    const code = await sock.requestPairingCode('+94740482244');  // Replace with your phone number
+    // Generating pairing code for the user
+    const code = await sock.getPairingCode();
     console.log(`🔗 Pairing Code: ${code}`);
   }
 
@@ -59,7 +57,7 @@ async function startBot() {
       const shouldReconnect = lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut;
       console.log('Connection closed. Reconnecting...', shouldReconnect);
       if (shouldReconnect) {
-        startBot(); // Reconnect on error
+        startBot();  // Reconnect on error
       }
     }
     console.log('Connection update:', update);
@@ -75,7 +73,6 @@ async function startBot() {
     // Handle ".ai" command for GPT-3
     if (body.startsWith('.ai ')) {
       const prompt = body.slice(4);
-      await sock.sendMessage(from, { text: 'Processing your request... Please wait.' }, { quoted: msg });
       const reply = await askGPT(prompt);
       await sock.sendMessage(from, { text: reply }, { quoted: msg });
     }
@@ -83,14 +80,11 @@ async function startBot() {
     // Handle ".img" command for image generation
     if (body.startsWith('.img ')) {
       const prompt = body.slice(5);  // Get the prompt after ".img "
-      await sock.sendMessage(from, { text: 'Generating image... Please wait.' }, { quoted: msg });
       const imageUrl = await generateImage(prompt);  // Call DALL·E or other API
-      await sock.sendMessage(from, { text: `Here is your generated image: ${imageUrl}` }, { quoted: msg });  // Send the image URL
+      await sock.sendMessage(from, { text: imageUrl }, { quoted: msg });  // Send the image URL
     }
   });
 }
 
-startBot().catch((error) => {
-  console.error('Error starting bot:', error);
-});
-
+// Start the bot
+startBot().catch(console.error);
