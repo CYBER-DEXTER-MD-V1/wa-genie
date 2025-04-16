@@ -44,8 +44,8 @@ async function startBot() {
   // Ensure QR code pairing if the device is not paired yet
   if (!sock.authState.creds.registered) {
     console.log('📲 Go to WhatsApp -> Linked Devices -> Link a Device');
-    // Generating pairing code for the user
-    const code = await sock.getPairingCode();
+    // Generate pairing code using the correct method
+    const code = await sock.requestPairingCode();
     console.log(`🔗 Pairing Code: ${code}`);
   }
 
