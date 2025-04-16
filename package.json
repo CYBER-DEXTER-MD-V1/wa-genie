@@ -7,7 +7,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^5.1.0", 
+    "@whiskeysockets/baileys": "4.5.0"
     "axios": "^1.2.0",                    
     "dotenv": "^16.0.0",                 
     "pino": "^8.0.0"                      
