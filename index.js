@@ -1,5 +1,5 @@
 const express = require('express');
-const { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 
 // Initialize the Express app
@@ -10,30 +10,30 @@ const port = 3000;
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Serve the main page where the user can input their phone number
+// Serve the main page where the user can initiate the login process
 app.get('/', (req, res) => {
   res.send(`
     <html>
       <body>
-        <h1>WhatsApp Bot Pairing</h1>
-        <form action="/generate-pairing-code" method="POST">
+        <h1>WhatsApp Bot Login</h1>
+        <form action="/login" method="POST">
           <label for="phone">Enter your phone number:</label>
           <input type="text" id="phone" name="phone" required>
-          <button type="submit">Generate Pairing Code</button>
+          <button type="submit">Start Login</button>
         </form>
-        <h2>Pairing Code: <span id="pairingCode">Waiting...</span></h2>
       </body>
     </html>
   `);
 });
 
 // Handle the form submission to generate a pairing code
-app.post('/generate-pairing-code', async (req, res) => {
+app.post('/login', async (req, res) => {
   const { phone } = req.body;  // Get the phone number from the form input
   console.log('Phone number received:', phone);
 
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info');  // Handle authentication state
-  const { version } = await fetchLatestBaileysVersion();  // Fetch the latest Baileys version
+  // Set up multi-file authentication state (to store WhatsApp login details)
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const { version } = await fetchLatestBaileysVersion();
 
   // Create the WhatsApp socket
   const sock = makeWASocket({
@@ -45,31 +45,49 @@ app.post('/generate-pairing-code', async (req, res) => {
     getMessage: async () => ({ conversation: '💬' }),  // Default message handler
   });
 
-  // If the device is not registered, request a pairing code
-  try {
-    if (!sock.authState.creds.registered) {
-      sock.ev.on('qr', (qr) => {
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=200x200`;
-        res.send(`
-          <html>
-            <body>
-              <h1>WhatsApp Bot Pairing</h1>
-              <p>Phone Number: ${phone}</p>
-              <h2>Scan the QR Code with WhatsApp</h2>
-              <img src="${qrUrl}" alt="QR Code" />
-              <p>Go to WhatsApp -> Linked Devices -> Link a Device</p>
-              <a href="/">Try again</a>
-            </body>
-          </html>
-        `);  // Display the QR code on the page
-      });
-    } else {
-      res.status(400).send('Device already registered');
-    }
-  } catch (error) {
-    console.error('Error generating pairing code:', error);
-    res.status(500).send('Error generating pairing code');
-  }
+  // Generate QR code when pairing is required
+  sock.ev.on('qr', (qr) => {
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=200x200`;
+    res.send(`
+      <html>
+        <body>
+          <h1>Scan this QR Code to Login</h1>
+          <p>Phone Number: ${phone}</p>
+          <h2>Scan the QR Code with WhatsApp</h2>
+          <img src="${qrUrl}" alt="QR Code" />
+          <p>Go to WhatsApp -> Linked Devices -> Link a Device</p>
+          <p>Once you've scanned, the bot will be ready to use.</p>
+        </body>
+      </html>
+    `);  // Show QR code on webpage
+  });
+
+  // After scanning the QR code, WhatsApp will connect and handle further actions
+  sock.ev.on('open', () => {
+    console.log('Bot is now connected');
+    res.send(`
+      <html>
+        <body>
+          <h1>Successfully Logged In</h1>
+          <p>Your WhatsApp account is now paired with the bot!</p>
+          <p>You can now interact with the bot.</p>
+        </body>
+      </html>
+    `);  // Inform user of successful login
+  });
+
+  // Handle connection errors
+  sock.ev.on('close', () => {
+    console.log('Connection closed');
+    res.send(`
+      <html>
+        <body>
+          <h1>Connection Closed</h1>
+          <p>Your session was closed. Please try logging in again.</p>
+        </body>
+      </html>
+    `);  // Notify user if connection is lost
+  });
 });
 
 // Start the Express server
